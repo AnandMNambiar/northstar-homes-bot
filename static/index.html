@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Northstar Homes — AI Sales Assistant</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:   #1a3c5e;
+      --accent:    #c9a84c;
+      --bg:        #f4f6f9;
+      --surface:   #ffffff;
+      --text:      #1e2d3d;
+      --muted:     #6b7c93;
+      --border:    #dde3ec;
+      --bot-bubble:  #eef2f8;
+      --user-bubble: #1a3c5e;
+      --radius:    12px;
+      --shadow:    0 4px 24px rgba(0,0,0,0.08);
+    }
+    html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── Layout ── */
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      grid-template-rows: 64px 1fr;
+      height: 100vh;
+      max-width: 1200px;
+      margin: 0 auto;
+      gap: 0;
+    }
+
+    /* ── Header ── */
+    header {
+      grid-column: 1 / -1;
+      background: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 18px; color: var(--primary);
+    }
+    .brand-name { color: #fff; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; }
+    .brand-sub  { color: rgba(255,255,255,0.55); font-size: 12px; margin-top: 1px; }
+    .header-status {
+      display: flex; align-items: center; gap: 8px;
+      color: rgba(255,255,255,0.75); font-size: 13px;
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 6px #4ade80;
+    }
+    .status-dot.ended { background: #f87171; box-shadow: 0 0 6px #f87171; }
+
+    /* ── Chat Column ── */
+    .chat-col {
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    /* Messages area */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* Bubbles */
+    .msg { display: flex; gap: 10px; max-width: 80%; animation: fadeUp 0.2s ease; }
+    .msg.bot  { align-self: flex-start; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700;
+    }
+    .avatar.bot  { background: var(--accent); color: var(--primary); }
+    .avatar.user { background: #e0e7ef; color: var(--primary); }
+
+    .bubble {
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 14px; line-height: 1.55;
+    }
+    .msg.bot  .bubble { background: var(--bot-bubble); color: var(--text); border-bottom-left-radius: 4px; }
+    .msg.user .bubble { background: var(--user-bubble); color: #fff; border-bottom-right-radius: 4px; }
+
+    .msg-meta { font-size: 11px; color: var(--muted); margin-top: 4px; padding: 0 4px; }
+
+    /* Status banners */
+    .banner {
+      align-self: center;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .banner.booking-ok      { background: #d1fae5; color: #065f46; }
+    .banner.booking-fail    { background: #fee2e2; color: #991b1b; }
+    .banner.escalate        { background: #fef3c7; color: #92400e; }
+    .banner.ended           { background: #ede9fe; color: #4c1d95; }
+
+    /* Typing indicator */
+    .typing-indicator { display: flex; align-items: center; gap: 4px; padding: 10px 14px; }
+    .typing-indicator span {
+      width: 7px; height: 7px; background: var(--muted); border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30%            { transform: translateY(-6px); }
+    }
+
+    /* Input bar */
+    .input-bar {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      background: var(--surface);
+    }
+    #user-input {
+      flex: 1;
+      resize: none;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+    #user-input:focus { border-color: var(--primary); }
+    #user-input:disabled { background: #f8f9fb; cursor: not-allowed; }
+
+    .btn {
+      border: none; cursor: pointer; border-radius: 10px;
+      font-size: 13px; font-weight: 600; padding: 10px 16px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-send {
+      background: var(--primary); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      width: 42px; height: 42px; padding: 0;
+    }
+    .btn-send svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .btn-analytics { background: var(--accent); color: var(--primary); font-size: 12px; padding: 10px 12px; }
+
+    /* ── Analytics Column ── */
+    .analytics-col {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .analytics-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .analytics-header h2 { font-size: 14px; font-weight: 700; color: var(--primary); }
+    .analytics-header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    #analytics-panel {
+      flex: 1; overflow-y: auto; padding: 16px;
+    }
+    #analytics-panel::-webkit-scrollbar { width: 4px; }
+    #analytics-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .analytics-placeholder {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 12px; color: var(--muted); text-align: center; padding: 24px;
+    }
+    .analytics-placeholder svg { opacity: 0.3; }
+    .analytics-placeholder p { font-size: 13px; }
+
+    .analytics-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .analytics-card h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 10px; }
+
+    .kv-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+    .kv-row:last-child { border-bottom: none; }
+    .kv-key   { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+    .kv-value { font-size: 12px; font-weight: 600; color: var(--text); text-align: right; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 9px; border-radius: 12px;
+      font-size: 11px; font-weight: 700;
+    }
+    .badge-high     { background: #d1fae5; color: #065f46; }
+    .badge-medium   { background: #fef3c7; color: #92400e; }
+    .badge-low      { background: #fee2e2; color: #991b1b; }
+    .badge-opted_out{ background: #f3f4f6; color: #6b7280; }
+    .badge-booked   { background: #d1fae5; color: #065f46; }
+    .badge-failed   { background: #fee2e2; color: #991b1b; }
+    .badge-interested    { background: #dbeafe; color: #1e40af; }
+    .badge-not_interested{ background: #f3f4f6; color: #6b7280; }
+    .badge-english  { background: #e0f2fe; color: #0369a1; }
+    .badge-hindi    { background: #fce7f3; color: #9d174d; }
+    .badge-hinglish { background: #ede9fe; color: #5b21b6; }
+
+    .objection-tag {
+      display: inline-block;
+      background: #fff7ed; color: #c2410c;
+      border: 1px solid #fed7aa;
+      padding: 2px 8px; border-radius: 8px;
+      font-size: 11px; margin: 2px;
+    }
+
+    .summary-text { font-size: 12px; line-height: 1.55; color: var(--text); }
+
+    /* ── New conversation button ── */
+    .new-convo-btn {
+      margin: 12px 16px 0;
+      background: var(--primary); color: #fff;
+      border: none; border-radius: 8px;
+      padding: 9px 14px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+      display: flex; align-items: center; gap: 6px; justify-content: center;
+    }
+    .new-convo-btn:hover { opacity: 0.85; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 64px 1fr; }
+      .analytics-col { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">N</div>
+      <div>
+        <div class="brand-name">Northstar Homes</div>
+        <div class="brand-sub">Northstar One · Sector 79, Gurugram</div>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">Online</span>
+    </div>
+  </header>
+
+  <!-- Chat Column -->
+  <div class="chat-col">
+    <div id="messages"></div>
+    <div class="input-bar">
+      <textarea id="user-input" rows="1" placeholder="Type your message… (English, Hindi, or Hinglish)"></textarea>
+      <button class="btn btn-analytics" id="analytics-btn" title="View Lead Analytics">📊 Analytics</button>
+      <button class="btn btn-send" id="send-btn" title="Send">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Analytics Column -->
+  <div class="analytics-col">
+    <div class="analytics-header">
+      <h2>Lead Analytics</h2>
+      <p>Updates after conversation ends</p>
+    </div>
+    <button class="new-convo-btn" id="new-convo-btn">＋ New Conversation</button>
+    <div id="analytics-panel">
+      <div class="analytics-placeholder" id="analytics-placeholder">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg>
+        <p>Chat with the bot, then click <strong>📊 Analytics</strong> to see lead data extracted from the conversation.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────
+  let sessionId = generateId();
+  let conversationEnded = false;
+
+  function generateId() {
+    return 'sess_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now();
+  }
+
+  // ── DOM refs ──────────────────────────────────────────────────────────
+  const messagesEl   = document.getElementById('messages');
+  const inputEl      = document.getElementById('user-input');
+  const sendBtn      = document.getElementById('send-btn');
+  const analyticsBtn = document.getElementById('analytics-btn');
+  const analyticsPanel = document.getElementById('analytics-panel');
+  const placeholder  = document.getElementById('analytics-placeholder');
+  const statusDot    = document.getElementById('status-dot');
+  const statusLabel  = document.getElementById('status-label');
+  const newConvoBtn  = document.getElementById('new-convo-btn');
+
+  // ── Initialise with greeting ──────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    addBotMessage("Namaste! Main Priya hoon, Northstar Homes ki taraf se. Aap Northstar One ke baare mein jaanna chahte hain? It's a beautiful project in Sector 79, Gurugram — 2 BHK and 3 BHK apartments available. How can I help you today?");
+  });
+
+  // ── Send message ──────────────────────────────────────────────────────
+  async function sendMessage() {
+    const text = inputEl.value.trim();
+    if (!text || conversationEnded) return;
+
+    addUserMessage(text);
+    inputEl.value = '';
+    autoResize();
+    setLoading(true);
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, message: text }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        addBotMessage("Sorry, something went wrong. Please try again.");
+        console.error(err);
+        return;
+      }
+
+      const data = await res.json();
+      addBotMessage(data.reply);
+
+      // Booking banners
+      if (data.booking_status === 'confirmed') {
+        addBanner('✅ Site visit booked successfully!', 'booking-ok');
+      } else if (data.booking_status === 'failed') {
+        addBanner('⚠️ Booking failed — team will call within 24 hrs', 'booking-fail');
+      }
+
+      // Escalation
+      if (data.escalate_to_human) {
+        addBanner('🙋 Escalating to a human team member…', 'escalate');
+      }
+
+      // Conversation ended
+      if (data.conversation_ended) {
+        conversationEnded = true;
+        addBanner('Conversation ended', 'ended');
+        setEnded();
+        // Auto-fetch analytics
+        setTimeout(fetchAnalytics, 600);
+      }
+
+    } catch (e) {
+      addBotMessage("Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Message helpers ───────────────────────────────────────────────────
+  function addUserMessage(text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg user';
+    wrap.innerHTML = `
+      <div class="avatar user">U</div>
+      <div>
+        <div class="bubble">${escHtml(text)}</div>
+        <div class="msg-meta" style="text-align:right">${timeNow()}</div>
+      </div>`;
+    messagesEl.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function addBotMessage(text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg bot';
+    wrap.innerHTML = `
+      <div class="avatar bot">P</div>
+      <div>
+        <div class="bubble">${escHtml(text)}</div>
+        <div class="msg-meta">Priya · ${timeNow()}</div>
+      </div>`;
+    messagesEl.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function addBanner(text, type) {
+    const el = document.createElement('div');
+    el.className = `banner ${type}`;
+    el.textContent = text;
+    messagesEl.appendChild(el);
+    scrollBottom();
+  }
+
+  function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg bot';
+    wrap.id = 'typing-msg';
+    wrap.innerHTML = `
+      <div class="avatar bot">P</div>
+      <div class="bubble typing-indicator"><span></span><span></span><span></span></div>`;
+    messagesEl.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function removeTyping() {
+    const t = document.getElementById('typing-msg');
+    if (t) t.remove();
+  }
+
+  // ── Analytics ─────────────────────────────────────────────────────────
+  analyticsBtn.addEventListener('click', fetchAnalytics);
+
+  async function fetchAnalytics() {
+    try {
+      const res = await fetch(`/analytics/${sessionId}`);
+      if (!res.ok) { alert('No analytics yet — start a conversation first.'); return; }
+      const d = await res.json();
+      renderAnalytics(d);
+    } catch (e) {
+      alert('Could not load analytics.');
+    }
+  }
+
+  function renderAnalytics(d) {
+    placeholder && placeholder.remove();
+
+    analyticsPanel.innerHTML = '';
+
+    // ── Customer Info card ──
+    analyticsPanel.appendChild(card('Customer Info', [
+      ['Name',        d.customer_name  || '—'],
+      ['Phone',       d.phone_number   || '—'],
+      ['Language',    badge(d.language_used)],
+      ['Turns',       d.total_turns + ' messages'],
+    ]));
+
+    // ── Interest & Config card ──
+    analyticsPanel.appendChild(card('Interest & Requirements', [
+      ['Interest Level',   badge(d.interest_level)],
+      ['Configuration',    d.configuration_interest || '—'],
+      ['Budget',           d.budget_range  || '—'],
+      ['Timeline',         d.timeline      || '—'],
+    ]));
+
+    // ── Site Visit card ──
+    analyticsPanel.appendChild(card('Site Visit', [
+      ['Status',           badge(d.site_visit_status)],
+      ['Preferred Date',   d.preferred_visit_date || '—'],
+      ['Preferred Time',   d.preferred_visit_time || '—'],
+    ]));
+
+    // ── Follow-up & Escalation card ──
+    analyticsPanel.appendChild(card('Follow-up & Escalation', [
+      ['Follow-up Required',  d.follow_up_required ? '✅ Yes' : 'No'],
+      ['Follow-up Time',      d.follow_up_time || '—'],
+      ['Escalated to Human',  d.escalated_to_human ? '✅ Yes' : 'No'],
+      ['Conversation Ended',  d.conversation_ended ? '✅ Yes' : 'In progress'],
+    ]));
+
+    // ── Objections card ──
+    if (d.objections_raised && d.objections_raised.length) {
+      const c = document.createElement('div');
+      c.className = 'analytics-card';
+      c.innerHTML = `<h3>Objections Raised</h3><div>${d.objections_raised.map(o => `<span class="objection-tag">${escHtml(o)}</span>`).join('')}</div>`;
+      analyticsPanel.appendChild(c);
+    }
+
+    // ── Summary card ──
+    if (d.summary) {
+      const c = document.createElement('div');
+      c.className = 'analytics-card';
+      c.innerHTML = `<h3>Summary</h3><p class="summary-text">${escHtml(d.summary)}</p>`;
+      analyticsPanel.appendChild(c);
+    }
+  }
+
+  function card(title, rows) {
+    const el = document.createElement('div');
+    el.className = 'analytics-card';
+    let html = `<h3>${title}</h3>`;
+    rows.forEach(([k, v]) => {
+      html += `<div class="kv-row"><span class="kv-key">${k}</span><span class="kv-value">${v}</span></div>`;
+    });
+    el.innerHTML = html;
+    return el;
+  }
+
+  function badge(val) {
+    if (!val) return '—';
+    return `<span class="badge badge-${val}">${val.replace('_', ' ')}</span>`;
+  }
+
+  // ── New conversation ──────────────────────────────────────────────────
+  newConvoBtn.addEventListener('click', () => {
+    if (!conversationEnded && messagesEl.children.length > 1) {
+      if (!confirm('Start a new conversation? The current one will be cleared.')) return;
+    }
+    sessionId = generateId();
+    conversationEnded = false;
+    messagesEl.innerHTML = '';
+    analyticsPanel.innerHTML = '';
+
+    // Re-add placeholder
+    const ph = document.createElement('div');
+    ph.className = 'analytics-placeholder';
+    ph.id = 'analytics-placeholder';
+    ph.innerHTML = `
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg>
+      <p>Chat with the bot, then click <strong>📊 Analytics</strong> to see lead data extracted from the conversation.</p>`;
+    analyticsPanel.appendChild(ph);
+
+    statusDot.classList.remove('ended');
+    statusLabel.textContent = 'Online';
+    inputEl.disabled = false;
+    sendBtn.disabled = false;
+
+    addBotMessage("Namaste! Main Priya hoon, Northstar Homes ki taraf se. Aap Northstar One ke baare mein jaanna chahte hain? It's a beautiful project in Sector 79, Gurugram — 2 BHK and 3 BHK apartments available. How can I help you today?");
+  });
+
+  // ── UI helpers ────────────────────────────────────────────────────────
+  function setLoading(on) {
+    if (on) { showTyping(); sendBtn.disabled = true; inputEl.disabled = true; }
+    else    { removeTyping(); sendBtn.disabled = false; inputEl.disabled = conversationEnded; }
+  }
+
+  function setEnded() {
+    inputEl.disabled = true;
+    sendBtn.disabled = true;
+    statusDot.classList.add('ended');
+    statusLabel.textContent = 'Ended';
+  }
+
+  function scrollBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function timeNow() {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Input auto-resize & keyboard shortcut ────────────────────────────
+  inputEl.addEventListener('input', autoResize);
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  sendBtn.addEventListener('click', sendMessage);
+
+  function autoResize() {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  }
+</script>
+</body>
+</html>
