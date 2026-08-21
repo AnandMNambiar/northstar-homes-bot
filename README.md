@@ -144,13 +144,6 @@ The system prompt (`prompt.py`) is designed around these principles:
 
 ---
 
-## Key Assumptions
-
-- Session state is **in-memory**. Restarting the server clears all sessions. A production version would use Redis or a database.
-- The **25% booking failure rate** is randomised to demonstrate failure handling. This is configured via `BOOKING_FAILURE_RATE` in `main.py`.
-- Analytics are extracted by a **second LLM call** at query time, not streamed incrementally. This keeps the implementation simple.
-- The bot does not have real calendar integration — site visit bookings are simulated.
-- The agent is built on OpenAI's API. Any model that supports the Chat Completions API and `json_object` response format will work (default: `gpt-4o-mini`).
 
 ---
 
