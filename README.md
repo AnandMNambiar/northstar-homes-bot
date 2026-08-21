@@ -164,7 +164,3 @@ The system prompt (`prompt.py`) is designed around these principles:
 
 ---
 
-## AI Tools Used
-
-- **Kiro IDE (AI coding assistant)** — used to scaffold and implement the full project.
-- **OpenAI API (gpt-4o-mini)** — powers the conversational agent and analytics extraction.
